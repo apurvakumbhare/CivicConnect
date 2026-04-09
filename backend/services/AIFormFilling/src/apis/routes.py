@@ -86,15 +86,19 @@ async def start_grievance_session(
         additional_context = f"Attached files: {', '.join([os.path.basename(p) for p in document_paths])}"
     
     # Extract data using the agent
-    extracted_data = await agent.extract_from_text(text, additional_context)
+    try:
+        extracted_data = await agent.extract_from_text(text, additional_context)
+    except Exception as e:
+        logger.error(f"AI Extraction failed: {e}")
+        extracted_data = {
+            "error": "AI Service unavailable",
+            "missing_info": ["all fields"],
+            "clarification_questions": ["I'm having trouble analyzing your request. Could you please provide more details manually?"]
+        }
     
-    # Check for errors
-    if "error" in extracted_data:
-        missing_info = extracted_data.get("missing_info", ["all fields"])
-        clarification_questions = extracted_data.get("clarification_questions", [])
-    else:
-        missing_info = extracted_data.get("missing_info", [])
-        clarification_questions = extracted_data.get("clarification_questions", [])
+    # Check for bits
+    missing_info = extracted_data.get("missing_info", [])
+    clarification_questions = extracted_data.get("clarification_questions", [])
     
     # Determine if form is complete
     is_complete = len(missing_info) == 0 and "error" not in extracted_data
