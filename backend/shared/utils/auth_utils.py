@@ -24,12 +24,24 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 def verify_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
+            logger.warning("Token payload missing 'sub' claim")
             return None
         return email
-    except JWTError:
+    except jwt.ExpiredSignatureError:
+        logger.warning("Token has expired")
+        return None
+    except JWTError as e:
+        logger.warning(f"JWT verification error: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error during token verification: {e}")
         return None
