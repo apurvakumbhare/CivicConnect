@@ -3,7 +3,7 @@ import json
 import re
 from typing import Optional
 from dotenv import load_dotenv
-from langchain_mistralai import ChatMistralAI
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from ..utils.prompts import EXTRACTION_PROMPT, CLARIFICATION_PROMPT, FORM_COMPLETION_CHECK_PROMPT
@@ -13,10 +13,13 @@ load_dotenv()
 
 class FormExtractionAgent:
     def __init__(self):
-        self.llm = ChatMistralAI(
-            model="mistral-large-latest",
-            mistral_api_key=os.getenv("MISTRAL_API_KEY"),
-            temperature=0.1
+        # Using a highly stable FREE model from OpenRouter
+        self.llm = ChatOpenAI(
+            model="microsoft/phi-3-mini-128k-instruct:free",
+            openai_api_key=os.getenv("MISTRAL_API_KEY"),
+            openai_api_base="https://openrouter.ai/api/v1",
+            temperature=0.1,
+            max_tokens=1000
         )
     
     async def extract_from_text(self, input_text: str, additional_context: str = "") -> dict:
