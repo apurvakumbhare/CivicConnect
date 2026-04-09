@@ -106,31 +106,35 @@ export default function CitizenPortal() {
     } catch (err) {
       console.error("startSession error", err);
       console.debug("startSession response data:", err?.response?.data);
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data ||
-        err?.message ||
-        "Failed to start session";
-      setServerMessage(String(msg));
       // create a short, safe summary for UI and log full object to console
       try {
         const respData = err?.response?.data;
-        let summary = err?.message || "Error";
+        let summary = "Failed to start session. Please try again.";
+        
         if (respData) {
-          if (typeof respData === "string") summary = respData;
-          else if (respData.message) summary = respData.message;
-          else if (respData.detail)
-            summary = Array.isArray(respData.detail)
-              ? JSON.stringify(respData.detail)
-              : String(respData.detail);
-          else summary = "[server error — see console]";
+          if (typeof respData === "string") {
+            summary = respData;
+          } else if (respData.detail) {
+            // Handle FastAPI validation error arrays or direct strings
+            if (Array.isArray(respData.detail)) {
+              summary = respData.detail.map(d => d.msg || d.message || JSON.stringify(d)).join(", ");
+            } else if (typeof respData.detail === "object") {
+              summary = respData.detail.message || respData.detail.msg || JSON.stringify(respData.detail);
+            } else {
+              summary = String(respData.detail);
+            }
+          } else if (respData.message) {
+            summary = respData.message;
+          }
+        } else if (err?.message) {
+          summary = err.message;
         }
+
+        setServerMessage(summary);
         setRawError(summary);
-        console.debug(
-          "full startSession error object:",
-          err?.response?.data || err
-        );
-      } catch {
+        console.debug("full startSession error object:", err?.response?.data || err);
+      } catch (e) {
+        setServerMessage("An unexpected error occurred");
         setRawError(String(err));
       }
     } finally {
