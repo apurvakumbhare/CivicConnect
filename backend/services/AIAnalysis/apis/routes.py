@@ -34,26 +34,33 @@ async def monitor_grievance_submissions():
     while True:
         try:
             print("Polling for new grievances...")
-            # Query for documents with status 'submitted'
-            cursor = collection.find({"status": "submitted"})
+            # Query for documents with status 'submitted' OR previously failed (retry)
+            cursor = collection.find({"status": {"$in": ["submitted", "analysis_failed"]}})
             async for doc in cursor:
-                print(f"Processing new grievance: {doc.get('form_id')}")
-                
-                # Extract GrievanceData from document
-                grievance = GrievanceData(
-                    form_id=doc['form_id'],
-                    user_id=doc['user_id'],
-                    title=doc['title'],
-                    full_description=doc['full_description'],
-                    category=doc['category'],
-                    area_ward_name=doc['area_ward_name'],
-                    impacted_population=doc['impacted_population'],
-                    is_recurring=doc['is_recurring'],
-                    document_paths=doc.get('document_paths', [])
-                )
-                
-                # Run analysis pipeline
-                await run_analysis_pipeline(grievance)
+                try:
+                    form_id = doc.get("form_id", "unknown")
+                    print(f"Processing new grievance: {form_id}")
+                    
+                    # Extract GrievanceData from document safely with defaults
+                    grievance = GrievanceData(
+                        form_id=doc.get('form_id', 'unknown'),
+                        user_id=doc.get('user_id', 'unknown'),
+                        title=doc.get('title') or doc.get('subject') or 'Untitled Grievance',
+                        full_description=doc.get('full_description') or doc.get('description') or 'No description provided.',
+                        category=doc.get('category', 'General'),
+                        area_ward_name=doc.get('area_ward_name') or doc.get('address') or 'Unknown Location',
+                        impacted_population=doc.get('impacted_population', 'Unknown'),
+                        is_recurring=doc.get('is_recurring', False),
+                        document_paths=doc.get('document_paths', [])
+                    )
+                    
+                    # Run analysis pipeline
+                    await run_analysis_pipeline(grievance)
+                except Exception as doc_e:
+                    print(f"Error processing document {doc.get('form_id', 'unknown')}: {doc_e}")
+                    # Mark document as failed so it doesn't perpetually block the worker
+                    if 'form_id' in doc:
+                        await collection.update_one({"form_id": doc["form_id"]}, {"$set": {"status": "analysis_failed"}})
             
             # Wait for 60 seconds before next poll
             await asyncio.sleep(60)
@@ -98,72 +105,97 @@ async def analyze_grievance(
 async def run_analysis_pipeline(grievance: GrievanceData):
     """
     Execute the four-module analysis pipeline
+    Each stage is independently guarded so a single failure doesn't mark everything as analysis_failed.
     """
+    from services.AIAnalysis.shared.schemas import VectorCheckResult, PriorityScore, RoutingResult
+    
+    # Module A: Vector Embedding & Duplicate Check (may fail if Mistral API key invalid)
+    print(f"[A] Checking for duplicates: {grievance.form_id}")
     try:
-        # Module A: Vector Embedding & Duplicate Check
-        print(f"[A] Checking for duplicates: {grievance.form_id}")
         vector_check = await vector_agent.check_duplicate(grievance)
-        
-        # Module B: Priority Scorer
-        print(f"[B] Scoring priority: {grievance.form_id}")
+    except Exception as e:
+        print(f"[A] Vector check failed (using fallback): {e}")
+        vector_check = VectorCheckResult(is_duplicate=False, parent_form_id=None, similarity_score=None)
+    
+    # Module B: Priority Scorer
+    print(f"[B] Scoring priority: {grievance.form_id}")
+    try:
         priority_score = await priority_agent.score_priority(grievance)
-        
-        # Module C: Smart Routing
-        print(f"[C] Routing to department: {grievance.form_id}")
+    except Exception as e:
+        print(f"[B] Priority scoring failed (using fallback): {e}")
+        priority_score = PriorityScore(score=50, reasoning="Fallback: pipeline error", urgency_level="medium")
+    
+    # Module C: Smart Routing
+    print(f"[C] Routing to department: {grievance.form_id}")
+    try:
         routing = await routing_agent.route_grievance(
             grievance, 
             priority_score.urgency_level
         )
-        
-        # Determine final status
-        if vector_check.is_duplicate:
-            status = "Linked"
-        else:
-            status = "Assigned"
-        
-        # Module D: Document Analysis
-        print(f"[D] Analyzing documents: {grievance.form_id}")
-        document_insights = await document_agent.analyze_documents(grievance.document_paths)
-        
-        # Create analysis result
-        analysis_result = AnalysisResult(
-            form_id=grievance.form_id,
-            vector_check=vector_check,
-            priority_score=priority_score,
-            routing=routing,
-            status=status,
-            analyzed_at=datetime.utcnow(),
-            document_insights=document_insights
-        )
-        
-        # Module E: Notification Dispatch
-        print(f"[E] Dispatching notifications: {grievance.form_id}")
-        await notification_agent.dispatch_notifications(analysis_result)
-        
-        # Create citizen message for DB storage
-        if analysis_result.vector_check.is_duplicate:
-            citizen_message = (
-                f"Your grievance #{analysis_result.form_id} has been linked to an existing case "
-                f"#{analysis_result.vector_check.parent_form_id}. You'll receive updates on the resolution."
-            )
-        else:
-            citizen_message = (
-                f"Your grievance #{analysis_result.form_id} has been assigned to "
-                f"{analysis_result.routing.officer_name} ({analysis_result.routing.department}). "
-                f"Expected response time: {analysis_result.routing.estimated_response_time}."
-            )
-        
-        # Store analysis record in database
-        await save_analysis_record(grievance, analysis_result)
-        
-        # Update grievance form status in AIFormFilling database
-        await update_grievance_status(grievance.form_id, status, analysis_result, citizen_message)
-        
-        print(f"✅ Analysis pipeline completed for {grievance.form_id}")
-        
     except Exception as e:
-        print(f"❌ Error in analysis pipeline for {grievance.form_id}: {e}")
-        # Log error but don't raise to avoid breaking background task
+        print(f"[C] Routing failed (using fallback): {e}")
+        routing = RoutingResult(
+            department=grievance.category or "General Administration",
+            officer_id="DEFAULT_OFFICER",
+            officer_name="Nodal Officer",
+            estimated_response_time="48 hours"
+        )
+    
+    # Determine final status
+    status = "Linked" if vector_check.is_duplicate else "Assigned"
+    
+    # Module D: Document Analysis
+    print(f"[D] Analyzing documents: {grievance.form_id}")
+    try:
+        document_insights = await document_agent.analyze_documents(grievance.document_paths)
+    except Exception as e:
+        print(f"[D] Document analysis failed (using fallback): {e}")
+        document_insights = None
+    
+    # Create analysis result
+    analysis_result = AnalysisResult(
+        form_id=grievance.form_id,
+        vector_check=vector_check,
+        priority_score=priority_score,
+        routing=routing,
+        status=status,
+        analyzed_at=datetime.utcnow(),
+        document_insights=document_insights
+    )
+    
+    # Module E: Notification Dispatch
+    print(f"[E] Dispatching notifications: {grievance.form_id}")
+    try:
+        await notification_agent.dispatch_notifications(analysis_result)
+    except Exception as e:
+        print(f"[E] Notification dispatch failed (non-fatal): {e}")
+    
+    # Create citizen message for DB storage
+    if analysis_result.vector_check.is_duplicate:
+        citizen_message = (
+            f"Your grievance #{analysis_result.form_id} has been linked to an existing case "
+            f"#{analysis_result.vector_check.parent_form_id}. You'll receive updates on the resolution."
+        )
+    else:
+        citizen_message = (
+            f"Your grievance #{analysis_result.form_id} has been assigned to "
+            f"{analysis_result.routing.officer_name} ({analysis_result.routing.department}). "
+            f"Expected response time: {analysis_result.routing.estimated_response_time}."
+        )
+    
+    # Store analysis record in database
+    try:
+        await save_analysis_record(grievance, analysis_result)
+    except Exception as e:
+        print(f"Failed to save analysis record: {e}")
+    
+    # Update grievance form status in AIFormFilling database
+    try:
+        await update_grievance_status(grievance.form_id, status, analysis_result, citizen_message)
+    except Exception as e:
+        print(f"Failed to update grievance status: {e}")
+    
+    print(f"Analysis pipeline completed for {grievance.form_id} with status: {status}")
 
 async def save_analysis_record(grievance: GrievanceData, analysis: AnalysisResult):
     """Save analysis record to database"""
@@ -203,6 +235,7 @@ async def update_grievance_status(
         "priority_score": analysis.priority_score.score,
         "priority_reasoning": analysis.priority_score.reasoning,  # Added for citizen info
         "urgency_level": analysis.priority_score.urgency_level,
+        "priority": analysis.priority_score.urgency_level,  # Alias for frontend display (detailData.priority)
         "assigned_department": analysis.routing.department,
         "assigned_officer_id": analysis.routing.officer_id,
         "assigned_officer_name": analysis.routing.officer_name,

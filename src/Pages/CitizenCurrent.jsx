@@ -99,13 +99,7 @@ export default function CitizenCurrent() {
                 s.includes("closed") ||
                 s.includes("completed") ||
                 s.includes("complete");
-              const isAssignedOrLinked = Boolean(
-                i.assigned_officer_id ||
-                  i.parent_form_id ||
-                  i.parent_ticket_id ||
-                  i.linked_to
-              );
-              return isAssignedOrLinked && !isCompleted;
+              return !isCompleted;
             });
             setItems(filtered.length > 0 ? filtered : []);
             setLoading(false);

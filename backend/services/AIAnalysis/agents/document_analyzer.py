@@ -3,19 +3,22 @@ import base64
 from typing import List, Optional
 import fitz  # PyMuPDF
 from PIL import Image
-from langchain_mistralai import ChatMistralAI
+from langchain_openai import ChatOpenAI
 from services.AIAnalysis.utils.config import settings
 
 class DocumentAnalysisAgent:
     def __init__(self):
-        self.llm = ChatMistralAI(
-            model="mistral-small-latest",  # For text summarization
-            mistral_api_key=settings.MISTRAL_API_KEY,
+        api_key = os.getenv("OPENROUTER_API_KEY", settings.MISTRAL_API_KEY)
+        self.llm = ChatOpenAI(
+            model="meta-llama/llama-3.3-70b-instruct:free",  # Changed model name for openrouter
+            openai_api_key=api_key,
+            openai_api_base="https://openrouter.ai/api/v1",
             temperature=0.1
         )
-        self.vision_llm = ChatMistralAI(
-            model="pixtral-12b-2409",  # Mistral vision model
-            mistral_api_key=settings.MISTRAL_API_KEY,
+        self.vision_llm = ChatOpenAI(
+            model="meta-llama/llama-3.3-70b-instruct:free",  # Changed vision model name for openrouter (though it may not support vision perfectly, we're bound by free models rn)
+            openai_api_key=api_key,
+            openai_api_base="https://openrouter.ai/api/v1",
             temperature=0.1
         )
     

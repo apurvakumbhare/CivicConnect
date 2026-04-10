@@ -13,10 +13,10 @@ load_dotenv()
 
 class FormExtractionAgent:
     def __init__(self):
-        # Using a highly stable FREE model from OpenRouter
+        # Using a highly stable model from OpenRouter
         self.llm = ChatOpenAI(
-            model="microsoft/phi-3-mini-128k-instruct:free",
-            openai_api_key=os.getenv("MISTRAL_API_KEY"),
+            model="meta-llama/llama-3.3-70b-instruct:free",
+            openai_api_key=os.getenv("OPENROUTER_API_KEY", os.getenv("MISTRAL_API_KEY")),
             openai_api_base="https://openrouter.ai/api/v1",
             temperature=0.1,
             max_tokens=1000
@@ -111,14 +111,16 @@ class FormExtractionAgent:
         """Parse JSON from LLM response, handling markdown code blocks and cleaning invalid syntax."""
         content = content.strip()
         
-        # Remove markdown code blocks if present
-        if content.startswith("```json"):
-            content = content[7:]
-        elif content.startswith("```"):
-            content = content[3:]
-        
-        if content.endswith("```"):
-            content = content[:-3]
+        # Try to find a JSON block using regex if there's surrounding text
+        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL | re.IGNORECASE)
+        if json_match:
+            content = json_match.group(1)
+        else:
+            # If no code block, maybe the whole string or from the first { to the last }
+            first_brace = content.find('{')
+            last_brace = content.rfind('}')
+            if first_brace != -1 and last_brace != -1 and last_brace >= first_brace:
+                content = content[first_brace:last_brace+1]
         
         content = content.strip()
         

@@ -23,6 +23,30 @@ class SmartRoutingAgent:
             "Parks": "Parks",
             "Buildings": "Buildings"
         }
+
+        # Synonym mapping for AI-extracted categories
+        self.synonym_map = {
+            "electric": "Electricity",
+            "electricity": "Electricity",
+            "power": "Electricity",
+            "water": "Water Supply",
+            "plumbing": "Water Supply",
+            "road": "Roads",
+            "roads": "Roads",
+            "infrastructure/roads": "Roads",
+            "electrical": "Electricity",
+            "sanitation": "Sanitation",
+            "garbage": "Sanitation",
+            "waste": "Sanitation",
+            "drainage": "Drainage",
+            "park": "Parks",
+            "street light": "Street Lights",
+            "street lights": "Street Lights",
+            "health": "Health",
+            "medical": "Health",
+            "local": "General Administration"
+        }
+
         
         # Estimated response times by urgency
         self.response_times = {
@@ -38,20 +62,40 @@ class SmartRoutingAgent:
         urgency_level: str
     ) -> RoutingResult:
         """
-        Route grievance to appropriate department and officer
+        Route grievance to appropriate department and officer with tiered fallback
         """
-        # Get department from category
-        department = self.department_mapping.get(
-            grievance.category, 
-            "General Administration"
-        )
+        # 1. Normalize Category
+        raw_cat = (grievance.category or "").lower().strip()
+        department = "General Administration"
         
-        # Find nodal officer for this department and area
+        # Check synonyms first
+        if raw_cat in self.synonym_map:
+            department = self.synonym_map[raw_cat]
+        else:
+            # Check direct mapping
+            for key, val in self.department_mapping.items():
+                if key.lower() == raw_cat:
+                    department = val
+                    break
+        
+        # 2. Find nodal officer with tiered fallback
+        # Level 1: Specific Ward match
         officer = await self._find_nodal_officer(
             department=department,
             area_ward_name=grievance.area_ward_name
         )
         
+        # Level 2: Fallback to any officer in department if Level 1 returned default
+        if officer["officer_id"] == "DEFAULT_OFFICER":
+             officer = await self._find_nodal_officer(
+                department=department,
+                area_ward_name=None # This triggers "any officer in dept"
+            )
+        
+        # Level 3: Fallback to a Dept Admin if still no nodal officer
+        if officer["officer_id"] == "DEFAULT_OFFICER":
+            officer = await self._find_dept_admin(department)
+
         # Get estimated response time
         eta = self.response_times.get(urgency_level, "48 hours")
         
@@ -61,6 +105,7 @@ class SmartRoutingAgent:
             officer_name=officer["officer_name"],
             estimated_response_time=eta
         )
+
     
     async def _find_nodal_officer(
         self, 
@@ -98,8 +143,45 @@ class SmartRoutingAgent:
         except Exception as e:
             logger.exception("Error finding nodal officer in DB: %s", e)
         
-        # Fallback to default officer
+        # Fallback if no specific officer found
         return {
             "officer_id": "DEFAULT_OFFICER",
             "officer_name": f"{department} - Nodal Officer"
+        }
+
+    async def _find_dept_admin(self, department: str) -> Dict[str, str]:
+        """
+        Fallback to find a Department Admin if no nodal officer found
+        """
+        try:
+            db = get_superuser_db()
+            collection = db.staff_users
+            
+            query = {
+                "role": "DEPT_ADMIN",
+                "metadata.dept": department
+            }
+            
+            admin_doc = await collection.find_one(query)
+            if admin_doc:
+                return {
+                    "officer_id": str(admin_doc.get("_id")),
+                    "officer_name": admin_doc.get("full_name", f"{department} Admin")
+                }
+            
+            # Secondary fallback: try SUPER_ADMIN
+            query["role"] = "SUPER_ADMIN"
+            super_doc = await collection.find_one(query)
+            if super_doc:
+                return {
+                    "officer_id": str(super_doc.get("_id")),
+                    "officer_name": super_doc.get("full_name", f"{department} Administrator")
+                }
+        except Exception as e:
+            logger.exception("Error finding dept admin: %s", e)
+
+            
+        return {
+            "officer_id": "DEFAULT_OFFICER",
+            "officer_name": "General Administrator"
         }

@@ -31,9 +31,9 @@ class OfficerService:
                 status=TicketStatus.ASSIGNED,  # Default to assigned in resolution context
                 priority_level=record["urgency_level"],
                 priority_reasoning=record["priority_reasoning"],
-                cluster_info=record.get("cluster_info", {}),  # Assuming cluster_info might be added later
+                cluster_info=record.get("cluster_info", {}),
                 assigned_at=record["analyzed_at"],
-                original_documents=record.get("document_insights", []) if record.get("document_insights") else []  # Placeholder for media
+                original_documents=record.get("document_paths", [])
             )
             
             # Format urgency banner
@@ -123,6 +123,12 @@ class OfficerService:
             {"$set": update_data} if not progress_note else {"$set": {k: v for k, v in update_data.items() if k != "$push"}, **update_data}
         )
         
+        # Sync the new status to the citizen's grievance form
+        await self.grievance_collection.update_one(
+            {"form_id": grievance_id},
+            {"$set": {"status": new_status}}
+        )
+        
         # TODO: Send notification to citizen
         await self._notify_citizen_status_update(grievance_id, new_status, officer_name=officer_name)
         
@@ -191,6 +197,12 @@ class OfficerService:
                     }
                 }
             }
+        )
+        
+        # Sync to the citizen's grievance form
+        await self.grievance_collection.update_one(
+            {"form_id": grievance_id},
+            {"$set": {"status": TicketStatus.SEEKING_INFO}}
         )
         
         # TODO: Send notification to citizen via bot

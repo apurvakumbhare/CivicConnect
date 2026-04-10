@@ -48,16 +48,21 @@ class ConflictResolver:
         except Exception:
             negative_sentiment = False
 
-        # If the user reports not resolved OR sentiment is negative, treat as a conflict
-        if (not feedback_data["is_resolved_by_user"]) or negative_sentiment:
+        low_rating = feedback_data["ratings"]["overall"] <= 2
+
+        # If the user reports not resolved OR sentiment is negative OR rating is low, treat as a conflict
+        if (not feedback_data["is_resolved_by_user"]) or negative_sentiment or low_rating:
             conflict_detected = True
+            
             if negative_sentiment and feedback_data["is_resolved_by_user"]:
                 # user marked resolved but sentiment negative -> keep as conflict and log
                 logger.info("Feedback %s marked as conflict due to negative sentiment", feedback_data.get("form_id"))
                 message = "Conflict detected due to negative sentiment"
+            elif low_rating:
+                logger.info("Feedback %s marked as conflict due to low rating", feedback_data.get("form_id"))
+                message = "Conflict detected due to low rating"
             
             # escalate on low rating OR strong negative sentiment
-            low_rating = feedback_data["ratings"]["overall"] <= 2
             if low_rating or negative_sentiment:
                 escalated = True
                 await self._escalate_ticket(feedback_data["form_id"], grievance.get("officer_id"))

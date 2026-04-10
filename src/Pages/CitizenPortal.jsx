@@ -238,23 +238,35 @@ export default function CitizenPortal() {
       setDetailLoading(true);
       await grievanceAPI.confirmResolution(id);
       // try to refresh recent list and detail
-      const refreshed = await (await grievanceAPI.getForm(id)).data;
-      setDetailData(refreshed || {});
+      let refreshed = null;
+      try {
+        const res = await grievanceAPI.getForm(id);
+        refreshed = res?.data || res;
+      } catch (fetchErr) {
+        console.warn("Could not refresh form after confirmation:", fetchErr);
+      }
+      if (refreshed) {
+        setDetailData(refreshed);
+      } else {
+        // Update local state manually since we confirmed successfully
+        setDetailData((prev) => ({ ...prev, status: "closed" }));
+      }
       // refresh recent list
       setRecent((r) =>
         r.map((i) =>
-          i.id === id ? { ...i, status: refreshed.status || "Resolved" } : i
+          i.id === id ? { ...i, status: refreshed?.status || "Closed" } : i
         )
       );
-      alert("Confirmed. Thank you.");
       setDetailLoading(false);
+      setDetailModalOpen(false);
+      setTimeout(() => alert("Resolution confirmed. Thank you for your feedback!"), 50);
     } catch (e) {
       console.error("Confirm error", e);
+      setDetailLoading(false);
       alert(
         "Failed to confirm: " +
-          (e?.response?.data?.message || e.message || "Unknown")
+          (e?.response?.data?.detail || e?.response?.data?.message || e.message || "Unknown error")
       );
-      setDetailLoading(false);
     }
   };
 
@@ -518,7 +530,7 @@ export default function CitizenPortal() {
                         </div>
                         <div>
                           <strong>Priority:</strong>{" "}
-                          {detailData.priority || "-"}
+                          {detailData.priority || detailData.urgency_level || (detailData.priority_score ? `Score: ${detailData.priority_score}` : "-")}
                         </div>
                         <div>
                           <strong>Assigned:</strong>{" "}

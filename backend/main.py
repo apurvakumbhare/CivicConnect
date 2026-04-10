@@ -2,8 +2,14 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import asyncio
+import os
+
+# Ensure upload directories exist
+os.makedirs("grievance_uploads", exist_ok=True)
+os.makedirs("resolution_uploads", exist_ok=True)
 
 from services.user_service.src.api.user_routes import router as user_router
 from services.AIFormFilling.src.apis.routes import router as grievance_router
@@ -55,6 +61,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Mount static files for media serving
+app.mount("/grievance_uploads", StaticFiles(directory="grievance_uploads"), name="grievance_uploads")
+app.mount("/resolution_uploads", StaticFiles(directory="resolution_uploads"), name="resolution_uploads")
 
 # CORS middleware
 app.add_middleware(

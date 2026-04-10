@@ -21,6 +21,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 Unauthorized errors globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user_id");
+      localStorage.removeItem("user_role");
+      // Optional: redirect to login
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+
+
 // API functions
 export const authAPI = {
   signup: (userData) => api.post("/users/signup", userData),

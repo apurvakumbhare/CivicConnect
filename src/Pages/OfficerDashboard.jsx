@@ -16,6 +16,8 @@ import {
   PauseCircle,
   RefreshCw,
   Image as ImageIcon,
+  BarChart,
+  Settings,
 } from "lucide-react";
 import { officerAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -50,8 +52,8 @@ export default function OfficerDashboard() {
   // Modals
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [showClarificationModal, setShowClarificationModal] = useState(false);
-  const [showResolvedDetailsModal, setShowResolvedDetailsModal] =
-    useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
   const [showClarificationsModal, setShowClarificationsModal] = useState(false); // New state for clarifications modal
 
   // Forms
@@ -477,12 +479,8 @@ export default function OfficerDashboard() {
       const response = await officerAPI.getTicketDetails(id);
       const data = response.data;
       setSelectedTicket(data);
-      const st = normalizeStatus(data.ticket?.status);
-      if (st === "resolved") {
-        setShowResolvedDetailsModal(true);
-      } else {
-        setShowResolvedDetailsModal(false);
-      }
+      setShowDetailsModal(true);
+
     } catch (err) {
       console.error("Failed to load ticket details:", err);
       setError(
@@ -877,194 +875,7 @@ export default function OfficerDashboard() {
           </div>
         </div>
 
-        {/* Ticket Details Panel */}
-        {selectedTicket && !showResolveModal && !showClarificationModal && (
-          <div className="mt-6 bg-white rounded-2xl shadow-lg border border-slate-200 p-6 animate-fade-in-up">
-            <div className="flex justify-between items-start mb-6">
-              <h3 className="text-xl font-bold text-slate-800">
-                Ticket Details
-              </h3>
-              <button
-                onClick={() => setSelectedTicket(null)}
-                className="text-slate-400 hover:text-red-500 text-2xl"
-              >
-                ×
-              </button>
-            </div>
 
-            {/* Status update form (small) */}
-            <div className="mb-6 p-4 bg-slate-50 rounded-lg flex flex-col gap-3 border">
-              <div className="text-xs font-bold text-slate-500 uppercase">
-                Officer Actions
-              </div>
-              <div className="flex gap-2 items-start">
-                <select
-                  value={statusForm.new_status}
-                  onChange={(e) =>
-                    setStatusForm({ ...statusForm, new_status: e.target.value })
-                  }
-                  className="p-2 border rounded bg-white text-sm"
-                >
-                  <option value="">Select action…</option>
-                  <option value="in_progress">Start Work</option>
-                  <option value="paused">Pause Work</option>
-                  <option value="resolved">Resolve</option>
-                  <option value="clarification_requested">
-                    Request Clarification
-                  </option>
-                </select>
-
-                <textarea
-                  placeholder="Optional progress note..."
-                  value={statusForm.progress_note}
-                  onChange={(e) =>
-                    setStatusForm({
-                      ...statusForm,
-                      progress_note: e.target.value,
-                    })
-                  }
-                  rows={2}
-                  className="flex-1 p-2 border rounded text-sm bg-white"
-                />
-
-                <button
-                  onClick={submitStatusChange}
-                  disabled={statusUpdateLoading || !statusForm.new_status}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded font-bold disabled:opacity-50"
-                >
-                  {statusUpdateLoading ? "Updating…" : "Update"}
-                </button>
-              </div>
-            </div>
-
-            {selectedTicket.urgency_banner && (
-              <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle
-                    className="text-red-600 flex-shrink-0"
-                    size={20}
-                  />
-                  <div className="text-red-700 font-medium">
-                    <ReactMarkdown>
-                      {selectedTicket.urgency_banner}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div className="space-y-4">
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <div className="text-xs text-slate-500 uppercase font-bold mb-1">
-                    Grievance ID
-                  </div>
-                  <div className="font-mono text-slate-800">
-                    {selectedTicket.ticket.grievance_id}
-                  </div>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <div className="text-xs text-slate-500 uppercase font-bold mb-1">
-                    Priority
-                  </div>
-                  <div
-                    className={`font-bold ${getPriorityColor(
-                      selectedTicket.ticket.priority_level
-                    )}`}
-                  >
-                    {selectedTicket.ticket.priority_level?.toUpperCase()}
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <div className="text-xs text-slate-500 uppercase font-bold mb-1">
-                    Status
-                  </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(
-                      selectedTicket.ticket.status
-                    )}`}
-                  >
-                    {selectedTicket.ticket.status
-                      ?.replace("_", " ")
-                      .toUpperCase()}
-                  </span>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <div className="text-xs text-slate-500 uppercase font-bold mb-1">
-                    Assigned At
-                  </div>
-                  <div className="text-slate-800">
-                    {new Date(
-                      selectedTicket.ticket.assigned_at
-                    ).toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {selectedTicket.context_panel && (
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="text-xs font-bold text-blue-500 uppercase mb-2">
-                  Context
-                </div>
-                <div className="text-blue-900 leading-relaxed">
-                  <ReactMarkdown>{selectedTicket.context_panel}</ReactMarkdown>
-                </div>
-              </div>
-            )}
-
-            {selectedTicket.cluster_summary && (
-              <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <div className="text-xs font-bold text-purple-500 uppercase mb-2 flex items-center gap-2">
-                  <Layers size={14} /> Cluster Summary
-                </div>
-                <div className="text-purple-900 leading-relaxed">
-                  <ReactMarkdown>
-                    {selectedTicket.cluster_summary}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-
-            {selectedTicket.media_gallery &&
-              selectedTicket.media_gallery.length > 0 && (
-                <div className="mb-6">
-                  <div className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
-                    <ImageIcon size={14} /> Evidence Gallery
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {selectedTicket.media_gallery.map((url, idx) => (
-                      <div
-                        key={idx}
-                        className="aspect-square bg-slate-100 rounded-lg overflow-hidden"
-                      >
-                        <img
-                          src={url}
-                          alt={`Evidence ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-            {selectedTicket.ticket.priority_reasoning && (
-              <div className="p-4 bg-slate-50 rounded-lg">
-                <div className="text-xs font-bold text-slate-500 uppercase mb-2">
-                  AI Priority Reasoning
-                </div>
-                <div className="text-slate-700">
-                  <ReactMarkdown>
-                    {selectedTicket.ticket.priority_reasoning}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* RESOLVE TICKET MODAL */}
@@ -1184,22 +995,29 @@ export default function OfficerDashboard() {
         </div>
       )}
 
-      {/* RESOLVED TICKET DETAILS MODAL */}
-      {showResolvedDetailsModal && selectedTicket && (
+      {/* TICKET DETAILS MODAL (Now for all statuses) */}
+      {showDetailsModal && selectedTicket && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in-up overflow-y-auto">
-          <div className="bg-gradient-to-br from-slate-50 to-green-50 rounded-2xl shadow-2xl w-full max-w-5xl my-8 overflow-hidden">
+          <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-2xl w-full max-w-5xl my-8 overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-6 flex justify-between items-center sticky top-0 z-10">
+            <div className={`text-white p-6 flex justify-between items-center sticky top-0 z-10 ${
+              normalizeStatus(selectedTicket.ticket.status) === "resolved" 
+              ? "bg-gradient-to-r from-green-600 to-emerald-600" 
+              : "bg-gradient-to-r from-blue-600 to-indigo-600"
+            }`}>
               <div>
                 <h3 className="font-bold text-2xl flex items-center gap-3">
-                  <CheckCircle size={28} /> Resolved Ticket Details
+                  {normalizeStatus(selectedTicket.ticket.status) === "resolved" ? <CheckCircle size={28} /> : <FileText size={28} />} 
+                  Ticket Details
                 </h3>
-                <p className="text-green-100 text-sm mt-1">
-                  Complete information about resolved grievance
+                <p className="text-blue-100 text-sm mt-1">
+                  {normalizeStatus(selectedTicket.ticket.status) === "resolved" 
+                   ? "Complete information about resolved grievance" 
+                   : "Detailed view of assigned grievance and AI analysis"}
                 </p>
               </div>
               <button
-                onClick={() => setShowResolvedDetailsModal(false)}
+                onClick={() => setShowDetailsModal(false)}
                 className="hover:bg-white/20 p-2 rounded-lg transition-colors"
               >
                 <XCircle size={28} />
@@ -1208,7 +1026,9 @@ export default function OfficerDashboard() {
 
             <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
               {/* Ticket ID & Status */}
-              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-600">
+              <div className={`bg-white rounded-xl shadow-md p-6 border-l-4 ${
+                normalizeStatus(selectedTicket.ticket.status) === "resolved" ? "border-green-600" : "border-blue-600"
+              }`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div className="text-xs text-slate-500 uppercase font-bold mb-2 flex items-center gap-2">
@@ -1235,56 +1055,14 @@ export default function OfficerDashboard() {
                 </div>
               </div>
 
-              {/* Urgency Banner */}
-              {selectedTicket.urgency_banner && (
-                <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 rounded-xl p-6 shadow-md">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle
-                      className="text-red-600 flex-shrink-0"
-                      size={24}
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-red-500 uppercase mb-2">
-                        Urgency Alert
-                      </div>
-                      <div className="text-red-900 font-medium text-lg">
-                        <ReactMarkdown>
-                          {selectedTicket.urgency_banner}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
+              {/* Stats/Dates Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-400">
+                  <div className="text-xs text-slate-500 uppercase font-bold mb-4 flex items-center gap-2">
+                    <Clock size={16} /> Timeline
                   </div>
-                </div>
-              )}
-
-              {/* Priority & Timeline Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl shadow-md p-5 border-t-4 border-blue-500">
-                  <div className="text-xs text-slate-500 uppercase font-bold mb-2 flex items-center gap-2">
-                    <AlertIcon size={14} /> Priority Level
-                  </div>
-                  <div
-                    className={`text-2xl font-bold ${getPriorityColor(
-                      selectedTicket.ticket.priority_level
-                    )}`}
-                  >
-                    {selectedTicket.ticket.priority_level?.toUpperCase()}
-                  </div>
-                  {selectedTicket.ticket.priority_reasoning && (
-                    <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm text-slate-700">
-                      <ReactMarkdown>
-                        {selectedTicket.ticket.priority_reasoning}
-                      </ReactMarkdown>
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-white rounded-xl shadow-md p-5 border-t-4 border-green-500">
-                  <div className="text-xs text-slate-500 uppercase font-bold mb-3 flex items-center gap-2">
-                    <Clock size={14} /> Timeline
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center p-2 bg-blue-50 rounded">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-2 bg-slate-50 rounded">
                       <span className="text-slate-600">Assigned:</span>
                       <span className="font-bold text-slate-800">
                         {new Date(
@@ -1293,7 +1071,7 @@ export default function OfficerDashboard() {
                       </span>
                     </div>
                     {selectedTicket.ticket.started_at && (
-                      <div className="flex justify-between items-center p-2 bg-yellow-50 rounded">
+                      <div className="flex justify-between items-center p-2 bg-blue-50 rounded">
                         <span className="text-slate-600">Started:</span>
                         <span className="font-bold text-slate-800">
                           {new Date(
@@ -1302,49 +1080,37 @@ export default function OfficerDashboard() {
                         </span>
                       </div>
                     )}
-                    {selectedTicket.ticket.resolved_at && (
-                      <div className="flex justify-between items-center p-2 bg-green-50 rounded">
-                        <span className="text-slate-600">Resolved:</span>
-                        <span className="font-bold text-slate-800">
-                          {new Date(
-                            selectedTicket.ticket.resolved_at
-                          ).toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                    {selectedTicket.ticket.assigned_at &&
-                      selectedTicket.ticket.resolved_at && (
-                        <div className="mt-3 p-3 bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg border border-green-300">
-                          <div className="text-xs text-green-700 font-bold uppercase mb-1">
-                            Total Duration
-                          </div>
-                          <div className="text-2xl font-bold text-green-800">
-                            {Math.round(
-                              (new Date(selectedTicket.ticket.resolved_at) -
-                                new Date(selectedTicket.ticket.assigned_at)) /
-                                (1000 * 60 * 60)
-                            )}{" "}
-                            hours
-                          </div>
-                        </div>
-                      )}
                   </div>
                 </div>
-              </div>
 
-              {/* Context Panel */}
-              {selectedTicket.context_panel && (
-                <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
-                  <div className="text-xs font-bold text-blue-600 uppercase mb-3 flex items-center gap-2">
-                    <FileText size={16} /> Context Information
+                {/* Context Panel */}
+                {selectedTicket.context_panel && (
+                  <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+                    <div className="text-xs font-bold text-blue-600 uppercase mb-3 flex items-center gap-2">
+                      <FileText size={16} /> Context Information
+                    </div>
+                    <div className="text-slate-800 leading-relaxed text-lg bg-blue-50 p-4 rounded-lg">
+                      <ReactMarkdown>
+                        {selectedTicket.context_panel}
+                      </ReactMarkdown>
+                    </div>
                   </div>
-                  <div className="text-slate-800 leading-relaxed text-lg bg-blue-50 p-4 rounded-lg">
-                    <ReactMarkdown>
-                      {selectedTicket.context_panel}
-                    </ReactMarkdown>
+                )}
+
+                {/* AI Priority Reasoning */}
+                {selectedTicket.ticket.priority_reasoning && (
+                  <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-amber-500">
+                    <div className="text-xs font-bold text-amber-600 uppercase mb-3 flex items-center gap-2">
+                      <BarChart size={16} /> AI Priority Reasoning
+                    </div>
+                    <div className="text-slate-800 leading-relaxed text-lg bg-amber-50 p-4 rounded-lg">
+                      <ReactMarkdown>
+                        {selectedTicket.ticket.priority_reasoning}
+                      </ReactMarkdown>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Cluster Summary */}
               {selectedTicket.cluster_summary && (
@@ -1359,25 +1125,6 @@ export default function OfficerDashboard() {
                   </div>
                 </div>
               )}
-
-              {/* Cluster Info */}
-              {selectedTicket.ticket.cluster_info &&
-                Object.keys(selectedTicket.ticket.cluster_info).length > 0 && (
-                  <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-indigo-500">
-                    <div className="text-xs font-bold text-indigo-600 uppercase mb-3 flex items-center gap-2">
-                      <Layers size={16} /> Cluster Details
-                    </div>
-                    <div className="bg-indigo-50 p-4 rounded-lg">
-                      <pre className="text-sm text-slate-800 overflow-x-auto">
-                        {JSON.stringify(
-                          selectedTicket.ticket.cluster_info,
-                          null,
-                          2
-                        )}
-                      </pre>
-                    </div>
-                  </div>
-                )}
 
               {/* Media Gallery */}
               {selectedTicket.media_gallery &&
@@ -1405,50 +1152,63 @@ export default function OfficerDashboard() {
                               size={24}
                             />
                           </div>
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                            <span className="text-white text-xs font-bold">
-                              Image {idx + 1}
-                            </span>
-                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-              {/* Original Documents */}
-              {selectedTicket.ticket.original_documents &&
-                selectedTicket.ticket.original_documents.length > 0 && (
-                  <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-teal-500">
-                    <div className="text-xs font-bold text-teal-600 uppercase mb-4 flex items-center gap-2">
-                      <FileText size={16} /> Original Documents (
-                      {selectedTicket.ticket.original_documents.length})
+              {/* Status Update Form (Only for non-resolved) */}
+              {normalizeStatus(selectedTicket.ticket.status) !== "resolved" && (
+                 <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500">
+                    <div className="text-xs font-bold text-yellow-600 uppercase mb-3 flex items-center gap-2">
+                      <Settings size={16} /> Update Status
                     </div>
-                    <div className="space-y-2">
-                      {selectedTicket.ticket.original_documents.map(
-                        (doc, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-3 p-3 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
-                          >
-                            <FileText className="text-teal-600" size={20} />
-                            <span className="text-slate-800 flex-1">
-                              Document {idx + 1}
-                            </span>
-                            <button className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-bold hover:bg-teal-700 transition-colors">
-                              View
-                            </button>
-                          </div>
-                        )
-                      )}
+                    <div className="flex gap-4 items-start">
+                      <div className="flex-1 space-y-4">
+                        <select
+                          value={statusForm.new_status}
+                          onChange={(e) =>
+                            setStatusForm({ ...statusForm, new_status: e.target.value })
+                          }
+                          className="w-full p-2 border rounded bg-slate-50 text-sm focus:ring-2 focus:ring-yellow-500 outline-none"
+                        >
+                          <option value="">Select new status…</option>
+                          <option value="in_progress">Start/Resume Work</option>
+                          <option value="paused">Pause Work</option>
+                          <option value="clarification_requested">Request Clarification</option>
+                          <option value="resolved">Mark as Resolved</option>
+                        </select>
+
+                        <textarea
+                          placeholder="Add a progress note..."
+                          value={statusForm.progress_note}
+                          onChange={(e) =>
+                            setStatusForm({
+                              ...statusForm,
+                              progress_note: e.target.value,
+                            })
+                          }
+                          rows={3}
+                          className="w-full p-2 border rounded text-sm bg-slate-50 focus:ring-2 focus:ring-yellow-500 outline-none"
+                        />
+                      </div>
+                      
+                      <button
+                        onClick={submitStatusChange}
+                        disabled={statusUpdateLoading || !statusForm.new_status}
+                        className="px-6 py-4 bg-yellow-600 text-white rounded-xl font-bold shadow-lg hover:bg-yellow-700 transition-colors disabled:opacity-50"
+                      >
+                        {statusUpdateLoading ? "Updating…" : "Update Status"}
+                      </button>
                     </div>
-                  </div>
-                )}
+                 </div>
+              )}
 
               {/* Close Button */}
               <div className="flex justify-end pt-4">
                 <button
-                  onClick={() => setShowResolvedDetailsModal(false)}
+                  onClick={() => setShowDetailsModal(false)}
                   className="px-8 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
                 >
                   Close

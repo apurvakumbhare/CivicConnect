@@ -1,6 +1,6 @@
 from .connection import user_collection
 from ..models.user import UserCreate, UserResponse
-from shared.utils.auth_utils import get_password_hash
+from shared.utils.auth_utils import get_password_hash, async_get_password_hash
 from bson import ObjectId
 from typing import List, Optional
 
@@ -44,7 +44,7 @@ class UserRepository:
         return result.deleted_count > 0
 
     async def create_user_with_password(self, user: UserCreate) -> str:
-        hashed_password = get_password_hash(user.password)
+        hashed_password = await async_get_password_hash(user.password)
         user_data = user.dict()
         user_data["password"] = hashed_password
         result = await user_collection.insert_one(user_data)

@@ -7,9 +7,9 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-# New imports for latest LangChain MistralAI
+# New imports for latest LangChain
 try:
-    from langchain_mistralai import ChatMistralAI
+    from langchain_openai import ChatOpenAI
     from langchain_core.messages import HumanMessage, SystemMessage
     from langchain_core.output_parsers import PydanticOutputParser
     _HAS_MISTRAL = True
@@ -39,9 +39,14 @@ def analyze_sentiment(text: str) -> Dict:
             label = "negative" if score > 0.25 else ("positive" if "good" in lowered or "great" in lowered else "neutral")
             return {"label": label, "score": float(score), "explanation": "heuristic fallback (langchain not available)"}
 
-        api_key = os.getenv("MISTRAL_API_KEY")
-        # Instantiate ChatMistralAI
-        llm = ChatMistralAI(api_key=api_key, temperature=0.0)
+        api_key = os.getenv("OPENROUTER_API_KEY", os.getenv("MISTRAL_API_KEY"))
+        # Instantiate ChatOpenAI for OpenRouter
+        llm = ChatOpenAI(
+            model="meta-llama/llama-3.3-70b-instruct:free",
+            openai_api_key=api_key,
+            openai_api_base="https://openrouter.ai/api/v1",
+            temperature=0.0
+        )
 
         # Define output parser
         parser = PydanticOutputParser(pydantic_object=SentimentOutput)
@@ -58,4 +63,12 @@ def analyze_sentiment(text: str) -> Dict:
 
     except Exception as e:
         logger.exception("Sentiment analysis failed")
-        return {"label": "neutral", "score": 0.5, "explanation": f"error: {str(e)}"}
+        
+        # simple fallback heuristic
+        negative_words = ["bad", "poor", "terrible", "worst", "not", "never", "angry", "disappointed", "unhappy"]
+        lowered = text.lower()
+        hits = sum(lowered.count(w) for w in negative_words)
+        score = min(1.0, hits / max(1, len(lowered.split())))
+        label = "negative" if score > 0.25 else ("positive" if "good" in lowered or "great" in lowered else "neutral")
+        
+        return {"label": label, "score": float(score), "explanation": "Standard heuristic fallback applied (API unavailable)"}

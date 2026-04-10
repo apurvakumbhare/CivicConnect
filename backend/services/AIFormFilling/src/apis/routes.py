@@ -499,3 +499,29 @@ async def get_grievance_status(form_id: str, user_id: str = Depends(get_current_
         "estimated_response_time": form.get("estimated_response_time"),
         "resolved_at": form.get("resolved_at")
     }
+
+@router.post("/forms/{form_id}/confirm-resolution")
+async def confirm_resolution(form_id: str, user_id: str = Depends(get_current_user)):
+    """Confirm a resolution from the citizen side."""
+    forms_collection = get_collection("grievance_forms")
+    
+    form = await forms_collection.find_one({"form_id": form_id})
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    
+    # Verify form belongs to user
+    if form.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Update status to closed
+    await forms_collection.update_one(
+        {"form_id": form_id},
+        {
+            "$set": {
+                "status": "closed",
+                "resolution_confirmed_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    return {"message": "Resolution confirmed successfully", "status": "closed"}

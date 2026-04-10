@@ -52,6 +52,63 @@ Best regards,
 Government Portal Team
 """
 
+        summary_html = ""
+        for line in summary_lines:
+            if ':' in line:
+                key, val = line.split(":", 1)
+                summary_html += f'<div class="summary-item"><strong>{key.strip()}:</strong> {val.strip()}</div>'
+            else:
+                summary_html += f'<div class="summary-item">{line}</div>'
+
+        html_body = f"""
+        <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #334155; }}
+                    .container {{ max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }}
+                    .header {{ background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white; text-align: center; padding: 30px 20px; }}
+                    .header h1 {{ margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .greeting {{ font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #0f172a; }}
+                    .success-msg {{ background-color: #ecfdf5; color: #065f46; padding: 15px; border-radius: 8px; margin-bottom: 30px; font-weight: 500; border-left: 4px solid #10b981; }}
+                    .ticket-details {{ background-color: #f1f5f9; border-radius: 10px; padding: 25px; margin-bottom: 30px; }}
+                    .ticket-label {{ font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 5px; display: block; }}
+                    .ticket-id {{ font-size: 22px; font-family: monospace; font-weight: 700; color: #1e293b; margin-bottom: 20px; display: block; word-break: break-all; }}
+                    .summary-item {{ margin-bottom: 8px; font-size: 15px; line-height: 1.5; }}
+                    .footer {{ text-align: center; padding: 20px; font-size: 13px; color: #94a3b8; background-color: #f8fafc; border-top: 1px solid #e2e8f0; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>CivicConnect Support</h1>
+                    </div>
+                    <div class="content">
+                        <div class="greeting">Dear Citizen,</div>
+                        <div class="success-msg">
+                            &#10003; Your grievance has been submitted successfully
+                        </div>
+                        
+                        <div class="ticket-details">
+                            <span class="ticket-label">Reference ID</span>
+                            <span class="ticket-id">{form_id}</span>
+                            
+                            <span class="ticket-label" style="margin-top: 15px; margin-bottom: 10px;">Summary of Details</span>
+                            {summary_html}
+                        </div>
+                        
+                        <p style="color: #475569; line-height: 1.6;">
+                            We are dynamically routing your request. You can use your Reference ID to track the real-time status of your grievance through the portal.
+                        </p>
+                    </div>
+                    <div class="footer">
+                        &copy; Government Portal Team - CivicConnect
+                    </div>
+                </div>
+            </body>
+        </html>
+        """
+
         if not self.smtp_host or not self.smtp_port:
             logger.warning("SMTP config missing for AIFormFilling service; using simulated send")
             logger.info(f"Simulated ticket email to {to_email}: {subject}")
@@ -63,6 +120,7 @@ Government Portal Team
         msg["To"] = to_email
         msg["Subject"] = subject
         msg.set_content(body)
+        msg.add_alternative(html_body, subtype='html')
 
         def _send():
             if self.smtp_use_ssl:
