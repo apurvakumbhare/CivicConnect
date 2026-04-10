@@ -70,6 +70,7 @@ class SmartRoutingAgent:
         """
         Query SuperUser DB staff_users collection to find the nodal officer.
         Uses fuzzy (partial, case-insensitive) matching on ward name.
+        Stores the officer's email/sub as officer_id to match JWT-based dashboard queries.
         """
         try:
             db = get_superuser_db()  # Synchronous call
@@ -91,14 +92,32 @@ class SmartRoutingAgent:
             officer_doc = await collection.find_one(query)
 
             if officer_doc:
+                # Use the same identifier stored in the JWT 'sub' field so that
+                # the officer dashboard query (assigned_officer_id == sub) matches.
+                # Staff users are identified by email in the JWT.
+                officer_id = (
+                    officer_doc.get("staff_id")     # JWT sub = staff_id — must match
+                    or officer_doc.get("sub")
+                    or officer_doc.get("email")
+                    or officer_doc.get("username")
+                    or str(officer_doc.get("_id", "DEFAULT_OFFICER"))
+                )
+                officer_name = officer_doc.get("full_name", f"{department} - Nodal Officer")
+                logger.info(
+                    f"[Routing] Assigned to officer_id={officer_id} ({officer_name}) "
+                    f"for dept={department}, ward={area_ward_name}"
+                )
                 return {
-                    "officer_id": str(officer_doc.get("_id", "DEFAULT_OFFICER")),
-                    "officer_name": officer_doc.get("full_name", f"{department} - Nodal Officer")
+                    "officer_id": officer_id,
+                    "officer_name": officer_name
                 }
         except Exception as e:
             logger.exception("Error finding nodal officer in DB: %s", e)
         
         # Fallback to default officer
+        logger.warning(
+            f"[Routing] No nodal officer found for dept={department}, ward={area_ward_name}. Using DEFAULT_OFFICER."
+        )
         return {
             "officer_id": "DEFAULT_OFFICER",
             "officer_name": f"{department} - Nodal Officer"

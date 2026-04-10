@@ -22,9 +22,12 @@ logger = logging.getLogger(__name__)
 @router.get("/dashboard", response_model=List[DashboardView])
 async def get_officer_dashboard(current_officer: dict = Depends(get_current_officer)):
     """Get officer's dashboard with all assigned tickets"""
+    officer_id = current_officer["sub"]
+    logger.info(f"[Dashboard] Fetching dashboard for officer_id={officer_id}")
     officer_service = OfficerService()  # Instantiate here
     try:
-        dashboard_data = await officer_service.get_officer_dashboard(current_officer["sub"])  # Use "sub" for user ID
+        dashboard_data = await officer_service.get_officer_dashboard(officer_id)
+        logger.info(f"[Dashboard] Found {len(dashboard_data)} ticket(s) for officer_id={officer_id}")
         return dashboard_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -27,39 +27,48 @@ async def monitor_grievance_submissions():
     """
     Background worker that polls the grievance_forms collection every minute
     for new submissions with status 'submitted' and triggers analysis pipeline.
+    Uses the async Motor collection from AIFormFilling to avoid sync/async mismatch.
     """
-    db = get_grievance_db()  # Synchronous call
-    collection = db.grievance_forms
-    
+    from services.AIFormFilling.src.db.connection import get_collection as get_grievance_collection
+
     while True:
         try:
-            print("Polling for new grievances...")
+            # Get the async Motor collection on each iteration (safe after startup)
+            collection = get_grievance_collection("grievance_forms")
+            print("[Monitor] Polling for new grievances...")
+
             # Query for documents with status 'submitted'
             cursor = collection.find({"status": "submitted"})
             async for doc in cursor:
-                print(f"Processing new grievance: {doc.get('form_id')}")
-                
-                # Extract GrievanceData from document
-                grievance = GrievanceData(
-                    form_id=doc['form_id'],
-                    user_id=doc['user_id'],
-                    title=doc['title'],
-                    full_description=doc['full_description'],
-                    category=doc['category'],
-                    area_ward_name=doc['area_ward_name'],
-                    impacted_population=doc['impacted_population'],
-                    is_recurring=doc['is_recurring'],
-                    document_paths=doc.get('document_paths', [])
-                )
-                
-                # Run analysis pipeline
-                await run_analysis_pipeline(grievance)
-            
+                form_id = doc.get('form_id', 'UNKNOWN')
+                print(f"[Monitor] Processing new grievance: {form_id}")
+
+                try:
+                    # Use .get() with safe fallbacks so missing AI-extracted fields
+                    # don't raise KeyError / ValidationError
+                    grievance = GrievanceData(
+                        form_id=form_id,
+                        user_id=doc.get('user_id', ''),
+                        title=doc.get('title') or doc.get('category', 'Untitled Grievance'),
+                        full_description=doc.get('full_description') or doc.get('original_text', ''),
+                        category=doc.get('category', 'General'),
+                        area_ward_name=doc.get('area_ward_name'),
+                        impacted_population=doc.get('impacted_population', 'Unknown'),
+                        is_recurring=doc.get('is_recurring', False),
+                        document_paths=doc.get('document_paths', [])
+                    )
+
+                    # Run analysis pipeline
+                    await run_analysis_pipeline(grievance)
+
+                except Exception as build_err:
+                    print(f"[Monitor] ❌ Failed to build GrievanceData for {form_id}: {build_err}")
+
             # Wait for 60 seconds before next poll
             await asyncio.sleep(60)
-            
+
         except Exception as e:
-            print(f"Error in grievance monitoring: {e}")
+            print(f"[Monitor] ❌ Error in grievance monitoring: {e}")
             await asyncio.sleep(60)  # Wait before retrying
 
 @router.get("/")
@@ -186,6 +195,7 @@ async def save_analysis_record(grievance: GrievanceData, analysis: AnalysisResul
         analyzed_at=analysis.analyzed_at
     )
     
+    print(f"[Analysis] Saving record for form_id={analysis.form_id}, assigned_officer_id={analysis.routing.officer_id}, dept={analysis.routing.department}")
     await db.analysis_records.insert_one(record.model_dump())
 
 async def update_grievance_status(

@@ -20,6 +20,16 @@ export default function Home() {
     else navigate("/login", { state: { redirectTo: "/citizen" } });
   };
 
+  const handleOfficer = () => {
+    if (user) navigate("/officer");
+    else navigate("/login", { state: { redirectTo: "/officer" } });
+  };
+
+  const handleAdmin = () => {
+    if (user) navigate("/admin");
+    else navigate("/login", { state: { redirectTo: "/admin" } });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <Navbar />
@@ -207,12 +217,12 @@ export default function Home() {
               <p className="text-sm text-slate-500 mt-2">
                 Assigned cases, AI drafting, upload evidence, close with photos.
               </p>
-              <Link
-                to="/officer"
+              <button
+                onClick={handleOfficer}
                 className="inline-block mt-4 text-sm font-semibold text-orange-600"
               >
                 Officer Login →
-              </Link>
+              </button>
             </div>
 
             <div className="p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
@@ -223,12 +233,12 @@ export default function Home() {
               <p className="text-sm text-slate-500 mt-2">
                 Manage departments, employees, escalation rules and feedback.
               </p>
-              <Link
-                to="/admin"
+              <button
+                onClick={handleAdmin}
                 className="inline-block mt-4 text-sm font-semibold text-orange-600"
               >
                 Admin Console →
-              </Link>
+              </button>
             </div>
           </div>
         </div>

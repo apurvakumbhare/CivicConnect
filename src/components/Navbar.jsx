@@ -63,12 +63,12 @@ export default function Navbar() {
             >
               About
             </Link>
-            <Link
-              to="/citizen"
+            <button
+              onClick={handleLodgeClick}
               className="hover:text-blue-600 transition-colors duration-200 relative after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-0 after:bg-blue-600 after:transition-all after:duration-200 hover:after:w-full"
             >
               Citizen Portal
-            </Link>
+            </button>
             <Link
               to="/contact"
               className="hover:text-blue-600 transition-colors duration-200 relative after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-0 after:bg-blue-600 after:transition-all after:duration-200 hover:after:w-full"
