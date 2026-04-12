@@ -25,22 +25,6 @@ Design and develop an AI-driven grievance redressal platform using Natural Langu
 - Route complaints to the appropriate department or authority
 - Assist government bodies in resolving issues efficiently and transparently
 
-## 2️⃣ Project Name
-
-CivicConnect
-
-## 3️⃣ Team Name
-
-Byteblazers
-
-## 4️⃣ 2-Minute Demonstration Video Link
-
-[**Watch Demonstration Video**](https://drive.google.com/file/d/1ArKD4mOPePdYk0J_3rkWfVnKfTtnEtVC/view)
-*(Note: Video contains cuts and is played at 2x speed to cover all features within 2 minutes)*
-
-## 5️⃣ PPT Link
-
-[**View Presentation (Canva)**](https://www.canva.com/design/DAG9bNV6rjE/wbwLyFcOsuLtx-y6SVkT7w/edit?utm_content=DAG9bNV6rjE&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
 
 ## ✅ Project Overview
 
