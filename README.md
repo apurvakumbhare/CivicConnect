@@ -1,4 +1,4 @@
-# GFGBQ-Team-byteblazers
+
 
 ## 1️⃣ Problem Statement
 
